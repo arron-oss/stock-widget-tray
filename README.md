@@ -33,4 +33,4 @@ npm run tauri dev
 
 程序使用 Windows 命名互斥锁保证单实例；退出时会回收由程序启动的 Python 行情桥接进程，避免旧版本服务占用 8765 端口。
 
-当前开发版启动依赖本机 Python 和 AKShare。系统预警使用 Rust 端的 Tauri Windows 通知插件；如果 Windows 通知被系统关闭，需要在系统通知设置中允许本程序。正式分发时需要再用 PyInstaller 把 `src-tauri/resources/server.py` 及其 Python 运行时打成 sidecar，才能做到目标机器免安装 Python。
+当前开发版启动依赖本机 Python 和 AKShare。系统预警使用 Rust 端的 Tauri Windows 通知插件；请使用 MSI/NSIS 安装后运行，直接运行 `src-tauri/target/release` 下的裸 `.exe` 没有 Windows 应用通知身份，系统会把通知来源显示为 PowerShell。如果 Windows 通知被系统关闭，需要在系统通知设置中允许本程序。正式分发时需要再用 PyInstaller 把 `src-tauri/resources/server.py` 及其 Python 运行时打成 sidecar，才能做到目标机器免安装 Python。
