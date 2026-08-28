@@ -1,6 +1,7 @@
 """Low-latency local quote bridge for the tray widget."""
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timedelta, timezone
 import json
@@ -38,7 +39,7 @@ SINA_HEADERS = {
 TENCENT_QUOTE_URL = "https://qt.gtimg.cn/q={symbols}"
 TENCENT_HEADERS = {"User-Agent": "Mozilla/5.0 stock-widget/0.1"}
 TARGET_INTERVAL = 0.1
-FUND_FLOW_INTERVAL = 45.0
+FUND_FLOW_INTERVAL = 4.0
 FUND_FLOW_URL = "https://push2.eastmoney.com/api/qt/stock/fflow/kline/get"
 FUND_FLOW_HEADERS = {"User-Agent": "Mozilla/5.0 stock-widget/0.1"}
 BEIJING_TZ = timezone(timedelta(hours=8))
@@ -228,11 +229,12 @@ def fund_flow_symbol(symbol: str) -> dict[str, Any] | None:
         values = str(klines[-1]).split(",")
         if len(values) < 6:
             return None
+        # Eastmoney's minute payload order is main, small, medium, large, super.
         return {
-            "flow_super": float(values[2]),
-            "flow_large": float(values[3]),
-            "flow_medium": float(values[4]),
-            "flow_small": float(values[5]),
+            "flow_super": float(values[5]),
+            "flow_large": float(values[4]),
+            "flow_medium": float(values[3]),
+            "flow_small": float(values[2]),
             "flow_updated_at": int(time.time() * 1000),
             "flow_source": "eastmoney-minute",
         }
@@ -259,10 +261,10 @@ def fund_flow(raw_symbols: str) -> dict[str, dict[str, Any]]:
         return cached
 
     updates = {}
-    for symbol in symbols:
-        flow = fund_flow_symbol(symbol)
-        if flow:
-            updates[symbol] = flow
+    with ThreadPoolExecutor(max_workers=min(8, len(symbols))) as executor:
+        for symbol, flow in zip(symbols, executor.map(fund_flow_symbol, symbols)):
+            if flow:
+                updates[symbol] = flow
     if updates:
         with FUND_FLOW_LOCK:
             FUND_FLOW_CACHE.update(updates)
