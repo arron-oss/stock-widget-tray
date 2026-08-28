@@ -39,13 +39,6 @@ function formatFlow(value) {
   return `${sign}${wan.toFixed(2)}万`;
 }
 
-function formatMicroTurnover(value, direction) {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return "--";
-  const label = direction === "buy" ? "买" : direction === "sell" ? "卖" : "中";
-  return `${formatFlow(amount)} ${label}`;
-}
-
 function normalizeSymbol(value) {
   const digits = value.trim().replace(/\D/g, "");
   if (!digits || digits.length > 6) return null;
@@ -107,7 +100,6 @@ function renderWatchlistStructure() {
         <span>开 <b data-stat="open">--</b></span>
         <span>高 <b data-stat="high">--</b></span>
         <span>低 <b data-stat="low">--</b></span>
-        <span title="根据最近 3 秒累计成交额和价格方向估算">3秒额 <b data-stat="turnover">--</b></span>
       </div>
       <div class="alert-controls">
         <label class="alert-toggle" title="现价达到目标价时通知"><input type="checkbox" data-alert="high">涨到</label>
@@ -134,7 +126,6 @@ function renderWatchlistStructure() {
       open: row.querySelector('[data-stat="open"]'),
       highPrice: row.querySelector('[data-stat="high"]'),
       lowPrice: row.querySelector('[data-stat="low"]'),
-      turnover: row.querySelector('[data-stat="turnover"]'),
       high: row.querySelector('[data-alert="high"]'),
       low: row.querySelector('[data-alert="low"]'),
       highThreshold: row.querySelector(".high-threshold"),
@@ -174,9 +165,6 @@ function updateRow(stock) {
   refs.open.textContent = formatPrice(stock.dayOpen);
   refs.highPrice.textContent = formatPrice(stock.dayHigh);
   refs.lowPrice.textContent = formatPrice(stock.dayLow);
-  refs.turnover.textContent = formatMicroTurnover(stock.turnoverDelta3s, stock.microDirection);
-  refs.turnover.classList.toggle("flow-up", stock.microDirection === "buy");
-  refs.turnover.classList.toggle("flow-down", stock.microDirection === "sell");
   refs.high.checked = Boolean(stock.highEnabled);
   refs.low.checked = Boolean(stock.lowEnabled);
   if (document.activeElement !== refs.highThreshold) refs.highThreshold.value = stock.high ?? "";
@@ -253,9 +241,6 @@ function applyQuotes(quotes) {
       name: quote.name || stock.name,
       price: Number(quote.price), change: Number(quote.change), delta: Number(quote.delta),
       dayOpen: Number(quote.day_open), dayHigh: Number(quote.day_high), dayLow: Number(quote.day_low), volume: Number(quote.volume),
-      turnover: Number(quote.turnover), turnoverDelta3s: quote.turnover_delta_3s == null ? stock.turnoverDelta3s : Number(quote.turnover_delta_3s),
-      microDirection: quote.micro_direction || stock.microDirection,
-      microWindowMs: Number(quote.micro_window_ms), microUpdatedAt: Number(quote.micro_updated_at),
       updatedAt: Number(quote.updated_at) || stock.updatedAt,
       latencyMs: Number(quote.latency_ms) || null, source: quote.source || stock.source,
     });

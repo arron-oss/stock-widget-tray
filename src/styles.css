@@ -73,11 +73,9 @@ button { color: inherit; }
 .down { color: var(--green); }
 .remove-button { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #657572; cursor: pointer; font-size: 15px; }
 .remove-button:hover { background: #302024; color: var(--red); }
-.row-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 6px 29px 0 0; color: #657572; font-size: 9px; font-variant-numeric: tabular-nums; }
+.row-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 6px 29px 0 0; color: #657572; font-size: 9px; font-variant-numeric: tabular-nums; }
 .row-stats span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-stats b { color: #abb7b4; font-weight: 500; }
-.row-stats b.flow-up { color: var(--red); }
-.row-stats b.flow-down { color: var(--green); }
 .alert-controls { display: grid; grid-template-columns: auto 61px auto auto 61px auto 1fr; gap: 6px; align-items: center; margin-top: 7px; color: var(--muted); font-size: 9px; }
 .alert-toggle { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
 .alert-toggle input { width: 12px; height: 12px; margin: 0; accent-color: var(--yellow); }
