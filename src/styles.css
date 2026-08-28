@@ -76,7 +76,16 @@ button { color: inherit; }
 .row-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 6px 29px 0 0; color: #657572; font-size: 9px; font-variant-numeric: tabular-nums; }
 .row-stats span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-stats b { color: #abb7b4; font-weight: 500; }
-.alert-controls { display: grid; grid-template-columns: auto 61px auto auto 61px auto 1fr; gap: 6px; align-items: center; margin-top: 7px; color: var(--muted); font-size: 9px; }
+.row-bottom { display: grid; grid-template-columns: minmax(0, 1fr) 92px; gap: 8px; align-items: end; margin-top: 7px; }
+.price-sparkline { width: 92px; height: 30px; overflow: visible; opacity: .9; }
+.price-sparkline polyline { stroke: #82918e; stroke-width: 1.5; }
+.price-sparkline polygon { fill: rgba(130, 145, 142, .09); }
+.price-sparkline[data-state="up"] polyline { stroke: var(--red); }
+.price-sparkline[data-state="up"] polygon { fill: rgba(255, 113, 128, .1); }
+.price-sparkline[data-state="down"] polyline { stroke: var(--green); }
+.price-sparkline[data-state="down"] polygon { fill: rgba(56, 214, 155, .1); }
+.price-sparkline[data-state="waiting"] { opacity: .3; }
+.alert-controls { display: grid; grid-template-columns: auto 61px auto auto 61px auto 1fr; gap: 6px; align-items: center; margin-top: 0; color: var(--muted); font-size: 9px; }
 .alert-toggle { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
 .alert-toggle input { width: 12px; height: 12px; margin: 0; accent-color: var(--yellow); }
 .alert-suffix { color: #98a5a2; white-space: nowrap; }
@@ -100,6 +109,8 @@ button { color: inherit; }
   .connection { font-size: 0; }
   .row-top { grid-template-columns: minmax(86px, 1fr) minmax(0, auto) auto 20px; gap: 5px; }
   .row-stats { margin-right: 25px; }
+  .row-bottom { grid-template-columns: minmax(0, 1fr) 78px; gap: 5px; }
+  .price-sparkline { width: 78px; }
   .alert-controls { grid-template-columns: auto 56px auto auto 56px auto 1fr; gap: 4px; }
   .alert-badge { display: none; }
   .threshold { width: 56px; }

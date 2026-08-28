@@ -13,6 +13,7 @@ let fundFlowInFlight = false;
 const alertLocks = new Map();
 const rowRefs = new Map();
 const lookupInFlight = new Set();
+const priceHistories = new Map();
 const stockList = document.querySelector("#stockList");
 
 function readWatchlist() {
@@ -37,6 +38,44 @@ function formatFlow(value) {
   const wan = amount / 10000;
   const sign = wan > 0 ? "+" : "";
   return `${sign}${wan.toFixed(2)}万`;
+}
+
+function recordPrice(stock) {
+  const price = Number(stock.price);
+  if (!Number.isFinite(price) || price <= 0) return;
+  const now = Date.now();
+  const history = priceHistories.get(stock.ticker) || [];
+  const last = history[history.length - 1];
+  if (last && now - last.time < 500) last.price = price;
+  else history.push({ time: now, price });
+  while (history.length && now - history[0].time > 30000) history.shift();
+  priceHistories.set(stock.ticker, history);
+}
+
+function renderSparkline(stock, svg) {
+  const history = priceHistories.get(stock.ticker) || [];
+  const points = history.map((sample) => sample.price);
+  const lineElement = svg.querySelector("polyline");
+  const areaElement = svg.querySelector("polygon");
+  if (points.length < 2) {
+    svg.dataset.state = "waiting";
+    lineElement.setAttribute("points", "0,15 100,15");
+    areaElement.setAttribute("points", "0,30 0,15 100,15 100,30");
+    return;
+  }
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const spread = max - min || Math.max(Math.abs(max) * 0.0002, 0.01);
+  const line = points.map((price, index) => {
+    const x = (index / (points.length - 1)) * 100;
+    const y = 27 - ((price - min) / spread) * 22;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(" ");
+  const first = points[0];
+  const last = points[points.length - 1];
+  svg.dataset.state = last > first ? "up" : last < first ? "down" : "flat";
+  lineElement.setAttribute("points", line);
+  areaElement.setAttribute("points", `0,30 ${line} 100,30`);
 }
 
 function normalizeSymbol(value) {
@@ -91,7 +130,7 @@ function renderWatchlistStructure() {
       <div class="row-top">
         <div class="stock-identity"><div class="stock-name"></div><span class="ticker"></span></div>
         <div class="flow-summary" aria-label="资金净流入">
-          <span data-flow="super">超大单 --</span><span data-flow="large">大单 --</span><span data-flow="medium">中单 --</span><span data-flow="small">小单 --</span>
+          <span data-flow="super">超大单 -- (--)</span><span data-flow="large">大单 -- (--)</span><span data-flow="medium">中单 -- (--)</span><span data-flow="small">小单 -- (--)</span>
         </div>
         <div class="price-line"><span class="price">--</span><span class="change"><strong>(--)</strong></span></div>
         <button class="remove-button" data-remove title="移除" aria-label="移除">×</button>
@@ -101,14 +140,20 @@ function renderWatchlistStructure() {
         <span>高 <b data-stat="high">--</b></span>
         <span>低 <b data-stat="low">--</b></span>
       </div>
-      <div class="alert-controls">
-        <label class="alert-toggle" title="现价达到目标价时通知"><input type="checkbox" data-alert="high">涨到</label>
-        <input class="threshold high-threshold" inputmode="decimal" data-threshold="high" value="" placeholder="目标价" aria-label="涨到目标价">
-        <span class="alert-suffix">提醒</span>
-        <label class="alert-toggle" title="现价达到目标价时通知"><input type="checkbox" data-alert="low">跌到</label>
-        <input class="threshold low-threshold" inputmode="decimal" data-threshold="low" value="" placeholder="目标价" aria-label="跌到目标价">
-        <span class="alert-suffix">提醒</span>
-        <span class="alert-badge"></span>
+      <div class="row-bottom">
+        <div class="alert-controls">
+          <label class="alert-toggle" title="现价达到目标价时通知"><input type="checkbox" data-alert="high">涨到</label>
+          <input class="threshold high-threshold" inputmode="decimal" data-threshold="high" value="" placeholder="目标价" aria-label="涨到目标价">
+          <span class="alert-suffix">提醒</span>
+          <label class="alert-toggle" title="现价达到目标价时通知"><input type="checkbox" data-alert="low">跌到</label>
+          <input class="threshold low-threshold" inputmode="decimal" data-threshold="low" value="" placeholder="目标价" aria-label="跌到目标价">
+          <span class="alert-suffix">提醒</span>
+          <span class="alert-badge"></span>
+        </div>
+        <svg class="price-sparkline" viewBox="0 0 100 30" role="img" aria-label="近 30 秒价格走势" preserveAspectRatio="none">
+          <polygon points="0,30 0,15 100,15 100,30"></polygon>
+          <polyline points="0,15 100,15" fill="none" vector-effect="non-scaling-stroke"></polyline>
+        </svg>
       </div>`;
 
     const refs = {
@@ -126,6 +171,7 @@ function renderWatchlistStructure() {
       open: row.querySelector('[data-stat="open"]'),
       highPrice: row.querySelector('[data-stat="high"]'),
       lowPrice: row.querySelector('[data-stat="low"]'),
+      sparkline: row.querySelector(".price-sparkline"),
       high: row.querySelector('[data-alert="high"]'),
       low: row.querySelector('[data-alert="low"]'),
       highThreshold: row.querySelector(".high-threshold"),
@@ -156,15 +202,19 @@ function updateRow(stock) {
     [refs.flowLarge, stock.flowLarge],
     [refs.flowMedium, stock.flowMedium],
     [refs.flowSmall, stock.flowSmall],
-  ].forEach(([element, value]) => {
+  ].forEach(([element, value], index) => {
     const amount = Number(value);
-    element.textContent = `${element.dataset.flow === "super" ? "超大单" : element.dataset.flow === "large" ? "大单" : element.dataset.flow === "medium" ? "中单" : "小单"} ${formatFlow(amount)}`;
+    const deltaKey = ["flowSuperDelta", "flowLargeDelta", "flowMediumDelta", "flowSmallDelta"][index];
+    const label = element.dataset.flow === "super" ? "超大单" : element.dataset.flow === "large" ? "大单" : element.dataset.flow === "medium" ? "中单" : "小单";
+    element.textContent = `${label} ${formatFlow(amount)} (${formatFlow(stock[deltaKey])})`;
     element.classList.toggle("flow-up", Number.isFinite(amount) && amount > 0);
     element.classList.toggle("flow-down", Number.isFinite(amount) && amount < 0);
   });
   refs.open.textContent = formatPrice(stock.dayOpen);
   refs.highPrice.textContent = formatPrice(stock.dayHigh);
   refs.lowPrice.textContent = formatPrice(stock.dayLow);
+  recordPrice(stock);
+  renderSparkline(stock, refs.sparkline);
   refs.high.checked = Boolean(stock.highEnabled);
   refs.low.checked = Boolean(stock.lowEnabled);
   if (document.activeElement !== refs.highThreshold) refs.highThreshold.value = stock.high ?? "";
@@ -195,6 +245,7 @@ async function addStock(value) {
 
 function removeStock(ticker) {
   stocks = stocks.filter((stock) => stock.ticker !== ticker);
+  priceHistories.delete(ticker);
   alertLocks.delete(`${ticker}:high`);
   alertLocks.delete(`${ticker}:low`);
   saveAndRender();
@@ -278,14 +329,19 @@ async function requestFundFlow() {
     stocks.forEach((stock) => {
       const flow = flows[stock.ticker];
       if (!flow) return;
-      Object.assign(stock, {
-        flowSuper: Number(flow.flow_super),
-        flowLarge: Number(flow.flow_large),
-        flowMedium: Number(flow.flow_medium),
-        flowSmall: Number(flow.flow_small),
-        flowUpdatedAt: Number(flow.flow_updated_at),
-        flowSource: flow.flow_source,
+      const fields = [
+        ["flow_super", "flowSuper", "flowSuperDelta"],
+        ["flow_large", "flowLarge", "flowLargeDelta"],
+        ["flow_medium", "flowMedium", "flowMediumDelta"],
+        ["flow_small", "flowSmall", "flowSmallDelta"],
+      ];
+      fields.forEach(([source, current, delta]) => {
+        const previousValue = Number(stock[current]);
+        const nextValue = Number(flow[source]);
+        stock[delta] = Number.isFinite(previousValue) && Number.isFinite(nextValue) ? nextValue - previousValue : null;
+        stock[current] = nextValue;
       });
+      Object.assign(stock, { flowUpdatedAt: Number(flow.flow_updated_at), flowSource: flow.flow_source });
       updateRow(stock);
     });
   } catch {
