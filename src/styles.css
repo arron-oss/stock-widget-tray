@@ -61,7 +61,7 @@ button { color: inherit; }
 .price { text-align: right; font-size: 16px; }
 .change { font-size: 11px; }
 .change strong { font-size: 11px; font-weight: 600; }
-.flow-summary { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; max-width: 100%; color: #a4b0ad; font-size: 9px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.flow-summary { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; max-width: 100%; padding-right: 12px; color: #a4b0ad; font-size: 9px; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .flow-summary span { white-space: nowrap; }
 .flow-summary > span { display: block; }
 .flow-delta { color: inherit; opacity: .82; }
@@ -107,6 +107,7 @@ button { color: inherit; }
   .beijing-clock { font-size: 9px; }
   .connection { font-size: 0; }
   .row-top { grid-template-columns: minmax(76px, 1fr) minmax(150px, auto) 57px 18px; gap: 5px; }
+  .flow-summary { padding-right: 8px; }
   .row-stats { margin-right: 25px; }
   .row-bottom { grid-template-columns: minmax(0, 1fr) 78px; gap: 5px; }
   .price-sparkline { width: 78px; }
