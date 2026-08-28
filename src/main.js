@@ -100,8 +100,7 @@ function renderWatchlistStructure() {
     row.innerHTML = `
       <div class="row-top">
         <div class="stock-identity"><div class="stock-name"></div><span class="ticker"></span></div>
-        <div class="price">--</div>
-        <div class="change"><strong>--</strong><span>--</span></div>
+        <div class="price-line"><span class="price">--</span><span class="change"><strong>(--)</strong></span></div>
         <button class="remove-button" data-remove title="移除" aria-label="移除">×</button>
       </div>
       <div class="row-stats">
@@ -127,7 +126,6 @@ function renderWatchlistStructure() {
       price: row.querySelector(".price"),
       change: row.querySelector(".change"),
       changeValue: row.querySelector(".change strong"),
-      delta: row.querySelector(".change span"),
       open: row.querySelector('[data-stat="open"]'),
       highPrice: row.querySelector('[data-stat="high"]'),
       lowPrice: row.querySelector('[data-stat="low"]'),
@@ -151,12 +149,10 @@ function updateRow(stock) {
   if (!refs) return;
   const numericChange = Number(stock.change);
   const change = Number.isFinite(numericChange) ? numericChange : 0;
-  const delta = Number(stock.delta);
   refs.name.textContent = stock.name || stock.ticker;
   refs.ticker.textContent = stock.ticker;
   refs.price.textContent = formatPrice(stock.price);
-  refs.changeValue.textContent = Number.isFinite(numericChange) ? `${change >= 0 ? "+" : ""}${change.toFixed(2)}%` : "--";
-  refs.delta.textContent = Number.isFinite(delta) ? `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}` : "--";
+  refs.changeValue.textContent = Number.isFinite(numericChange) ? `(${change >= 0 ? "+" : ""}${change.toFixed(2)}%)` : "(--)";
   refs.change.classList.toggle("up", change >= 0);
   refs.change.classList.toggle("down", change < 0);
   refs.open.textContent = formatPrice(stock.dayOpen);
