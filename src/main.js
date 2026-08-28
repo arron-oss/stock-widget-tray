@@ -409,7 +409,7 @@ syncWatchlist();
 connectStream();
 requestSnapshot();
 requestFundFlow();
-setInterval(requestFundFlow, 5000);
+setInterval(requestFundFlow, 2000);
 updateMarketState();
 updateBeijingClock();
 setInterval(() => { updateMarketState(); updateBeijingClock(); }, 1000);

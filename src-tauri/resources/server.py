@@ -1,7 +1,6 @@
 """Low-latency local quote bridge for the tray widget."""
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timedelta, timezone
 import json
@@ -39,8 +38,8 @@ SINA_HEADERS = {
 TENCENT_QUOTE_URL = "https://qt.gtimg.cn/q={symbols}"
 TENCENT_HEADERS = {"User-Agent": "Mozilla/5.0 stock-widget/0.1"}
 TARGET_INTERVAL = 0.1
-FUND_FLOW_INTERVAL = 4.0
-FUND_FLOW_URL = "https://push2.eastmoney.com/api/qt/stock/fflow/kline/get"
+FUND_FLOW_INTERVAL = 1.5
+FUND_FLOW_URL = "https://push2.eastmoney.com/api/qt/ulist.np/get"
 FUND_FLOW_HEADERS = {"User-Agent": "Mozilla/5.0 stock-widget/0.1"}
 BEIJING_TZ = timezone(timedelta(hours=8))
 
@@ -208,43 +207,8 @@ def refresh_with_akshare(symbols: list[str]) -> None:
         broadcast(updates)
 
 
-def fund_flow_symbol(symbol: str) -> dict[str, Any] | None:
-    """Read the latest minute-level cumulative four-tier flow for one symbol."""
-    market = "1" if symbol.startswith(("5", "6", "9")) else "0"
-    params = {
-        "lmt": "1",
-        "klt": "1",
-        "secid": f"{market}.{symbol}",
-        "fields1": "f1,f2,f3,f7",
-        "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61",
-        "ut": "b2884a393a59ad64002292a3e90d46a5",
-    }
-    try:
-        response = HTTP.get(FUND_FLOW_URL, params=params, headers=FUND_FLOW_HEADERS, timeout=3.0)
-        response.raise_for_status()
-        data = response.json().get("data") or {}
-        klines = data.get("klines") or []
-        if not klines:
-            return None
-        values = str(klines[-1]).split(",")
-        if len(values) < 6:
-            return None
-        # Eastmoney's minute payload order is main, small, medium, large, super.
-        return {
-            "flow_super": float(values[5]),
-            "flow_large": float(values[4]),
-            "flow_medium": float(values[3]),
-            "flow_small": float(values[2]),
-            "flow_updated_at": int(time.time() * 1000),
-            "flow_source": "eastmoney-minute",
-        }
-    except (requests.RequestException, ValueError, TypeError, IndexError) as error:
-        print(f"[stock-widget] fund flow failed for {symbol}: {error}")
-        return None
-
-
 def fund_flow(raw_symbols: str) -> dict[str, dict[str, Any]]:
-    """Return Eastmoney's latest minute-level four-tier net fund flow."""
+    """Return Eastmoney's current-day four-tier flow in one batched request."""
     symbols = [
         symbol for symbol in dict.fromkeys(part.strip() for part in raw_symbols.split(","))
         if symbol.isdigit() and len(symbol) == 6
@@ -260,11 +224,36 @@ def fund_flow(raw_symbols: str) -> dict[str, dict[str, Any]]:
     if cache_fresh and len(cached) == len(symbols):
         return cached
 
-    updates = {}
-    with ThreadPoolExecutor(max_workers=min(8, len(symbols))) as executor:
-        for symbol, flow in zip(symbols, executor.map(fund_flow_symbol, symbols)):
-            if flow:
-                updates[symbol] = flow
+    secids = ",".join(f"{'1' if symbol.startswith(('5', '6', '9')) else '0'}.{symbol}" for symbol in symbols)
+    params = {
+        "fltt": "2",
+        "secids": secids,
+        "fields": "f12,f14,f66,f69,f72,f75,f78,f81,f84,f87",
+        "ut": "b2884a393a59ad64002292a3e90d46a5",
+    }
+    updates: dict[str, dict[str, Any]] = {}
+    try:
+        response = HTTP.get(FUND_FLOW_URL, params=params, headers=FUND_FLOW_HEADERS, timeout=2.5)
+        response.raise_for_status()
+        data = response.json().get("data") or {}
+        rows = data.get("diff") or []
+        if isinstance(rows, dict):
+            rows = list(rows.values())
+        received_at = int(time.time() * 1000)
+        for row in rows:
+            symbol = str(row.get("f12") or "").zfill(6)
+            if symbol not in symbols:
+                continue
+            updates[symbol] = {
+                "flow_super": row.get("f66"),
+                "flow_large": row.get("f72"),
+                "flow_medium": row.get("f78"),
+                "flow_small": row.get("f84"),
+                "flow_updated_at": received_at,
+                "flow_source": "eastmoney-realtime",
+            }
+    except (requests.RequestException, ValueError, TypeError) as error:
+        print(f"[stock-widget] batched fund flow failed: {error}")
     if updates:
         with FUND_FLOW_LOCK:
             FUND_FLOW_CACHE.update(updates)
