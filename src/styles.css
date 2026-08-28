@@ -44,9 +44,6 @@ button { color: inherit; }
 .icon-button:hover { background: var(--surface-3); color: #fff; }
 
 .watch-panel { min-height: 0; flex: 1; display: flex; flex-direction: column; padding: 10px 12px 8px; overflow: hidden; }
-.panel-heading { flex: 0 0 38px; display: flex; align-items: center; justify-content: space-between; }
-.panel-heading > div { display: flex; flex-direction: column; gap: 2px; }
-.panel-heading strong { font-size: 16px; line-height: 1; }
 .stock-list { min-height: 0; flex: 1; overflow-y: auto; border: 1px solid var(--line); border-radius: 7px; background: #101617; scrollbar-width: thin; scrollbar-color: #344346 transparent; }
 .empty-state { height: 100%; min-height: 130px; display: grid; place-items: center; color: var(--muted); font-size: 11px; }
 .stock-row { position: relative; padding: 9px 10px 8px; border-bottom: 1px solid #253033; background: #131a1c; touch-action: pan-y; transition: transform .14s ease, opacity .14s ease, background .14s ease; }
@@ -64,9 +61,9 @@ button { color: inherit; }
 .price { text-align: right; font-size: 16px; }
 .change { font-size: 11px; }
 .change strong { font-size: 11px; font-weight: 600; }
-.flow-summary { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px 5px; max-width: 180px; color: #8b9895; font-size: 8px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.flow-summary { display: grid; grid-template-columns: repeat(2, max-content); justify-content: end; gap: 2px 5px; max-width: 210px; color: #8b9895; font-size: 8px; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .flow-summary span { white-space: nowrap; }
-.flow-summary span + span::before { content: "|"; color: #52615e; margin-right: 5px; }
+.flow-summary span:nth-child(even)::before { content: "|"; color: #52615e; margin-right: 5px; }
 .flow-up { color: var(--red); }
 .flow-down { color: var(--green); }
 .up { color: var(--red); }

@@ -1,6 +1,7 @@
 """Low-latency local quote bridge for the tray widget."""
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timedelta, timezone
 import json
@@ -24,6 +25,9 @@ STREAM_LOCK = Lock()
 FUND_FLOW_CACHE: dict[str, dict[str, Any]] = {}
 FUND_FLOW_CACHE_AT = 0.0
 FUND_FLOW_LOCK = Lock()
+INTRADAY_CACHE: dict[str, dict[str, Any]] = {}
+INTRADAY_CACHE_AT = 0.0
+INTRADAY_LOCK = Lock()
 
 NAME_CACHE = {
     "600519": "贵州茅台", "300750": "宁德时代", "601318": "中国平安",
@@ -41,6 +45,8 @@ TARGET_INTERVAL = 0.1
 FUND_FLOW_INTERVAL = 1.5
 FUND_FLOW_URL = "https://push2.eastmoney.com/api/qt/ulist.np/get"
 FUND_FLOW_HEADERS = {"User-Agent": "Mozilla/5.0 stock-widget/0.1"}
+INTRADAY_INTERVAL = 30.0
+INTRADAY_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 
@@ -263,6 +269,62 @@ def fund_flow(raw_symbols: str) -> dict[str, dict[str, Any]]:
     return cached
 
 
+def intraday_symbol(symbol: str) -> dict[str, Any] | None:
+    market = "1" if symbol.startswith(("5", "6", "9")) else "0"
+    params = {
+        "secid": f"{market}.{symbol}",
+        "klt": "1",
+        "fqt": "1",
+        "lmt": "240",
+        "end": "20500000",
+        "fields1": "f1,f2,f3,f4",
+        "fields2": "f51,f52,f53,f54,f55,f56,f57",
+    }
+    try:
+        response = HTTP.get(INTRADAY_URL, params=params, headers=FUND_FLOW_HEADERS, timeout=3.0)
+        response.raise_for_status()
+        data = response.json().get("data") or {}
+        points = []
+        for item in data.get("klines") or []:
+            values = str(item).split(",")
+            if len(values) < 3:
+                continue
+            try:
+                points.append({"time": values[0], "price": float(values[2])})
+            except (TypeError, ValueError):
+                continue
+        return {"points": points, "updated_at": int(time.time() * 1000), "source": "eastmoney-minute"} if points else None
+    except (requests.RequestException, ValueError, TypeError) as error:
+        print(f"[stock-widget] intraday failed for {symbol}: {error}")
+        return None
+
+
+def intraday(raw_symbols: str) -> dict[str, dict[str, Any]]:
+    symbols = [
+        symbol for symbol in dict.fromkeys(part.strip() for part in raw_symbols.split(","))
+        if symbol.isdigit() and len(symbol) == 6
+    ]
+    if not symbols:
+        return {}
+    global INTRADAY_CACHE_AT
+    now = time.monotonic()
+    with INTRADAY_LOCK:
+        cached = {symbol: INTRADAY_CACHE[symbol] for symbol in symbols if symbol in INTRADAY_CACHE}
+        if now - INTRADAY_CACHE_AT < INTRADAY_INTERVAL and len(cached) == len(symbols):
+            return cached
+    updates = {}
+    with ThreadPoolExecutor(max_workers=min(6, len(symbols))) as executor:
+        for symbol, result in zip(symbols, executor.map(intraday_symbol, symbols)):
+            if result:
+                updates[symbol] = result
+    if updates:
+        with INTRADAY_LOCK:
+            INTRADAY_CACHE.update(updates)
+            INTRADAY_CACHE_AT = now
+            cached = {symbol: INTRADAY_CACHE[symbol] for symbol in symbols if symbol in INTRADAY_CACHE}
+    return cached
+
+
 def broadcast(updates: dict[str, dict[str, Any]]) -> None:
     """Push only changed quotes to connected local SSE clients."""
     payload = f"data: {json.dumps(updates, ensure_ascii=False)}\n\n".encode("utf-8")
@@ -393,6 +455,17 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/fund-flow":
             symbols = parse_qs(parsed.query).get("symbols", [""])[0]
             payload = json.dumps(fund_flow(symbols), ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_common_headers()
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        if parsed.path == "/intraday":
+            symbols = parse_qs(parsed.query).get("symbols", [""])[0]
+            payload = json.dumps(intraday(symbols), ensure_ascii=False).encode("utf-8")
             self.send_response(200)
             self.send_common_headers()
             self.send_header("Content-Type", "application/json; charset=utf-8")

@@ -10,10 +10,12 @@ let stream;
 let streamRetry;
 let snapshotInFlight = false;
 let fundFlowInFlight = false;
+let intradayInFlight = false;
 const alertLocks = new Map();
 const rowRefs = new Map();
 const lookupInFlight = new Set();
 const priceHistories = new Map();
+const intradayHistories = new Map();
 const stockList = document.querySelector("#stockList");
 
 function readWatchlist() {
@@ -54,7 +56,8 @@ function recordPrice(stock) {
 
 function renderSparkline(stock, svg) {
   const history = priceHistories.get(stock.ticker) || [];
-  const points = history.map((sample) => sample.price);
+  const dayPoints = intradayHistories.get(stock.ticker) || [];
+  const points = dayPoints.concat(history.map((sample) => sample.price));
   const lineElement = svg.querySelector("polyline");
   const areaElement = svg.querySelector("polygon");
   if (points.length < 2) {
@@ -107,7 +110,7 @@ function resizeWindowToContent() {
     const listHeight = rows.length
       ? Array.from(rows).reduce((height, row) => height + row.offsetHeight, 0) + 2
       : 130;
-    const desiredHeight = Math.min(680, Math.max(250, listHeight + 46 + 38 + 40 + 20));
+    const desiredHeight = Math.min(680, Math.max(250, listHeight + 46 + 40 + 20));
     void invoke("resize_window", { height: desiredHeight });
   });
 }
@@ -246,6 +249,7 @@ async function addStock(value) {
 function removeStock(ticker) {
   stocks = stocks.filter((stock) => stock.ticker !== ticker);
   priceHistories.delete(ticker);
+  intradayHistories.delete(ticker);
   alertLocks.delete(`${ticker}:high`);
   alertLocks.delete(`${ticker}:low`);
   saveAndRender();
@@ -348,6 +352,27 @@ async function requestFundFlow() {
     // 资金流失败不影响现价行情。
   } finally {
     fundFlowInFlight = false;
+  }
+}
+
+async function requestIntraday() {
+  if (intradayInFlight || !stocks.length) return;
+  intradayInFlight = true;
+  try {
+    const symbols = stocks.map((stock) => stock.ticker).join(",");
+    const response = await fetch(`${API}/intraday?symbols=${encodeURIComponent(symbols)}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("intraday unavailable");
+    const payload = await response.json();
+    stocks.forEach((stock) => {
+      const points = payload[stock.ticker]?.points;
+      if (!Array.isArray(points) || !points.length) return;
+      intradayHistories.set(stock.ticker, points.map((point) => Number(point.price)).filter((price) => Number.isFinite(price) && price > 0));
+      updateRow(stock);
+    });
+  } catch {
+    // 分时图失败不影响实时行情。
+  } finally {
+    intradayInFlight = false;
   }
 }
 
@@ -464,7 +489,9 @@ syncWatchlist();
 connectStream();
 requestSnapshot();
 requestFundFlow();
+requestIntraday();
 setInterval(requestFundFlow, 2000);
+setInterval(requestIntraday, 30000);
 updateMarketState();
 updateBeijingClock();
 setInterval(() => { updateMarketState(); updateBeijingClock(); }, 1000);
