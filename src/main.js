@@ -215,9 +215,11 @@ function updateRow(stock) {
     const label = element.dataset.flow === "super" ? "超大单" : element.dataset.flow === "large" ? "大单" : element.dataset.flow === "medium" ? "中单" : "小单";
     const streakKey = element.dataset.flow === "super" ? "flowSuperPositiveStreak" : element.dataset.flow === "large" ? "flowLargePositiveStreak" : null;
     const streak = streakKey ? Number(stock[streakKey]) : 0;
-    const streakText = streakKey && Number.isFinite(streak) && streak > 0 ? `连续${streak}次` : "";
-    element.innerHTML = `${label} ${formatFlow(amount)} <span class="flow-delta">(${formatFlow(stock[deltaKey])})</span>${streakText ? `<span class="streak-count">${streakText}</span>` : ""}`;
-    if (streakKey) element.title = "按括号内的本次变化量统计，连续为正才会累加";
+    element.innerHTML = `${label} ${formatFlow(amount)} <span class="flow-delta">(${formatFlow(stock[deltaKey])})</span>`;
+    if (streakKey) {
+      element.title = "括号内变化量连续 3 次为正时闪烁提示";
+      element.classList.toggle("flow-streak-alert", Number.isFinite(streak) && streak >= 3);
+    }
     element.classList.toggle("flow-up", Number.isFinite(amount) && amount > 0);
     element.classList.toggle("flow-down", Number.isFinite(amount) && amount < 0);
   });

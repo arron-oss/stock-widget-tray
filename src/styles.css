@@ -65,7 +65,14 @@ button { color: inherit; }
 .flow-summary span { white-space: nowrap; }
 .flow-summary > span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .flow-delta { color: inherit; opacity: .82; }
-.streak-count { display: inline-block; margin-left: 4px; color: var(--yellow); font-size: 8px; font-weight: 700; }
+.flow-streak-alert { animation: flow-pulse 1.05s ease-in-out infinite; }
+@keyframes flow-pulse {
+  0%, 100% { opacity: 1; text-shadow: 0 0 0 transparent; }
+  50% { opacity: .42; text-shadow: 0 0 7px currentColor; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-streak-alert { animation: none; text-shadow: 0 0 5px currentColor; }
+}
 .flow-up { color: var(--red); }
 .flow-down { color: var(--green); }
 .up { color: var(--red); }
