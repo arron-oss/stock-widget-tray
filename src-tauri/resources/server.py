@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from datetime import datetime, timedelta, timezone
+from collections import deque
 import json
 import re
 from threading import Event, Lock, Thread
@@ -41,6 +42,9 @@ TARGET_INTERVAL = 0.1
 FUND_FLOW_INTERVAL = 1.5
 FUND_FLOW_URL = "https://push2.eastmoney.com/api/qt/ulist.np/get"
 FUND_FLOW_HEADERS = {"User-Agent": "Mozilla/5.0 stock-widget/0.1"}
+MICRO_WINDOW_SECONDS = 3.0
+MICRO_SAMPLES: dict[str, deque[tuple[float, float, float]]] = {}
+MICRO_LOCK = Lock()
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 
@@ -100,8 +104,29 @@ def refresh_batch(symbols: list[str]) -> None:
         high_price = optional_float(values, 4)
         low_price = optional_float(values, 5)
         volume = optional_float(values, 8)
+        turnover = optional_float(values, 9)
         name = values[0].strip() or NAME_CACHE.get(symbol, symbol)
         NAME_CACHE[symbol] = name
+        micro_delta = None
+        micro_direction = "flat"
+        micro_window_ms = 0
+        if turnover is not None:
+            now_mono = time.monotonic()
+            with MICRO_LOCK:
+                samples = MICRO_SAMPLES.setdefault(symbol, deque())
+                samples.append((now_mono, turnover, price))
+                while samples and now_mono - samples[0][0] > MICRO_WINDOW_SECONDS:
+                    samples.popleft()
+                if len(samples) >= 2:
+                    base_time, base_turnover, base_price = samples[0]
+                    candidate = turnover - base_turnover
+                    if candidate >= 0:
+                        micro_delta = candidate
+                        micro_window_ms = round((now_mono - base_time) * 1000)
+                        if price > base_price:
+                            micro_direction = "buy"
+                        elif price < base_price:
+                            micro_direction = "sell"
         auction_available = is_auction_window() and price > 0
         updates[symbol] = {
             "ticker": symbol,
@@ -114,6 +139,11 @@ def refresh_batch(symbols: list[str]) -> None:
             "day_high": high_price,
             "day_low": low_price,
             "volume": volume,
+            "turnover": turnover,
+            "turnover_delta_3s": micro_delta,
+            "micro_direction": micro_direction,
+            "micro_window_ms": micro_window_ms,
+            "micro_updated_at": received_at,
             "updated_at": received_at,
             "latency_ms": latency_ms,
             "source": "sina-batch",
