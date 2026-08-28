@@ -61,9 +61,8 @@ button { color: inherit; }
 .price { text-align: right; font-size: 16px; }
 .change { font-size: 11px; }
 .change strong { font-size: 11px; font-weight: 600; }
-.flow-summary { display: grid; grid-template-columns: repeat(2, max-content); justify-content: end; gap: 2px 5px; max-width: 210px; color: #8b9895; font-size: 8px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.flow-summary { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; max-width: none; color: #8b9895; font-size: 8px; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .flow-summary span { white-space: nowrap; }
-.flow-summary span:nth-child(even)::before { content: "|"; color: #52615e; margin-right: 5px; }
 .flow-up { color: var(--red); }
 .flow-down { color: var(--green); }
 .up { color: var(--red); }

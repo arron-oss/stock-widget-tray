@@ -16,6 +16,8 @@ const rowRefs = new Map();
 const lookupInFlight = new Set();
 const priceHistories = new Map();
 const intradayHistories = new Map();
+const chartRanges = [5, 15, 30, 60, 120, 240];
+let chartRangeMinutes = 30;
 const stockList = document.querySelector("#stockList");
 
 function readWatchlist() {
@@ -57,7 +59,8 @@ function recordPrice(stock) {
 function renderSparkline(stock, svg) {
   const history = priceHistories.get(stock.ticker) || [];
   const dayPoints = intradayHistories.get(stock.ticker) || [];
-  const points = dayPoints.concat(history.map((sample) => sample.price));
+  const points = dayPoints.concat(history.map((sample) => sample.price)).slice(-chartRangeMinutes);
+  svg.title = `分时 ${chartRangeMinutes} 分钟 · 点击切换 · 滚轮调整`;
   const lineElement = svg.querySelector("polyline");
   const areaElement = svg.querySelector("polygon");
   if (points.length < 2) {
@@ -255,6 +258,13 @@ function removeStock(ticker) {
   saveAndRender();
 }
 
+function rerenderCharts() {
+  stocks.forEach((stock) => {
+    const refs = rowRefs.get(stock.ticker);
+    if (refs) renderSparkline(stock, refs.sparkline);
+  });
+}
+
 async function sendSystemAlert(title, body) {
   const invoke = window.__TAURI__?.core?.invoke;
   if (typeof invoke !== "function") return false;
@@ -419,9 +429,26 @@ function updateBeijingClock() {
 }
 
 stockList.addEventListener("click", (event) => {
+  const chart = event.target.closest(".price-sparkline");
+  if (chart) {
+    const index = chartRanges.indexOf(chartRangeMinutes);
+    chartRangeMinutes = chartRanges[(index + 1) % chartRanges.length];
+    rerenderCharts();
+    return;
+  }
   const button = event.target.closest("[data-remove]");
   if (button) removeStock(button.closest(".stock-row").dataset.ticker);
 });
+
+stockList.addEventListener("wheel", (event) => {
+  const chart = event.target.closest(".price-sparkline");
+  if (!chart) return;
+  event.preventDefault();
+  const index = chartRanges.indexOf(chartRangeMinutes);
+  const next = event.deltaY < 0 ? Math.max(0, index - 1) : Math.min(chartRanges.length - 1, index + 1);
+  chartRangeMinutes = chartRanges[next];
+  rerenderCharts();
+}, { passive: false });
 
 let swipeState;
 stockList.addEventListener("pointerdown", (event) => {
