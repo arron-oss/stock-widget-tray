@@ -9,8 +9,8 @@ let stocks = readWatchlist();
 let stream;
 let streamRetry;
 let snapshotInFlight = false;
+let fundFlowInFlight = false;
 const alertLocks = new Map();
-const momentumHistory = new Map();
 const rowRefs = new Map();
 const lookupInFlight = new Set();
 const stockList = document.querySelector("#stockList");
@@ -31,23 +31,13 @@ function formatPrice(value) {
   return number.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function updateMomentum(stock) {
-  const price = Number(stock.price);
-  if (!Number.isFinite(price) || price <= 0) return;
-  const now = Date.now();
-  const samples = momentumHistory.get(stock.ticker) || [];
-  samples.push({ time: now, price });
-  while (samples.length > 80 || (samples[0] && now - samples[0].time > 6000)) samples.shift();
-  momentumHistory.set(stock.ticker, samples);
-  const base = samples.find((sample) => now - sample.time >= 2500) || samples[0];
-  if (!base || base.price <= 0 || samples.length < 2) {
-    stock.momentumText = "--";
-    stock.momentumDirection = "flat";
-    return;
-  }
-  const change = ((price - base.price) / base.price) * 100;
-  stock.momentumText = `${change >= 0 ? "+" : ""}${change.toFixed(2)}%/3秒`;
-  stock.momentumDirection = Math.abs(change) < 0.02 ? "flat" : change > 0 ? "up" : "down";
+function formatFlow(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "--";
+  const wan = amount / 10000;
+  const sign = wan > 0 ? "+" : "";
+  if (Math.abs(wan) >= 10000) return `${sign}${(wan / 10000).toFixed(2)}亿`;
+  return `${sign}${wan.toFixed(0)}万`;
 }
 
 function normalizeSymbol(value) {
@@ -68,6 +58,7 @@ function saveAndRender() {
   persistWatchlist();
   renderWatchlistStructure();
   syncWatchlist();
+  requestFundFlow();
 }
 
 function resizeWindowToContent() {
@@ -100,6 +91,9 @@ function renderWatchlistStructure() {
     row.innerHTML = `
       <div class="row-top">
         <div class="stock-identity"><div class="stock-name"></div><span class="ticker"></span></div>
+        <div class="flow-summary" aria-label="资金净流入">
+          <span data-flow="super">超大单 --</span><span data-flow="large">大单 --</span><span data-flow="medium">中单 --</span><span data-flow="small">小单 --</span>
+        </div>
         <div class="price-line"><span class="price">--</span><span class="change"><strong>(--)</strong></span></div>
         <button class="remove-button" data-remove title="移除" aria-label="移除">×</button>
       </div>
@@ -107,7 +101,6 @@ function renderWatchlistStructure() {
         <span>开 <b data-stat="open">--</b></span>
         <span>高 <b data-stat="high">--</b></span>
         <span>低 <b data-stat="low">--</b></span>
-        <span title="最近 3 秒价格变化">动能 <b data-stat="momentum">--</b></span>
       </div>
       <div class="alert-controls">
         <label class="alert-toggle" title="现价达到目标价时通知"><input type="checkbox" data-alert="high">涨到</label>
@@ -123,13 +116,17 @@ function renderWatchlistStructure() {
       row,
       name: row.querySelector(".stock-name"),
       ticker: row.querySelector(".ticker"),
+      flow: row.querySelector(".flow-summary"),
+      flowSuper: row.querySelector('[data-flow="super"]'),
+      flowLarge: row.querySelector('[data-flow="large"]'),
+      flowMedium: row.querySelector('[data-flow="medium"]'),
+      flowSmall: row.querySelector('[data-flow="small"]'),
       price: row.querySelector(".price"),
       change: row.querySelector(".change"),
       changeValue: row.querySelector(".change strong"),
       open: row.querySelector('[data-stat="open"]'),
       highPrice: row.querySelector('[data-stat="high"]'),
       lowPrice: row.querySelector('[data-stat="low"]'),
-      momentum: row.querySelector('[data-stat="momentum"]'),
       high: row.querySelector('[data-alert="high"]'),
       low: row.querySelector('[data-alert="low"]'),
       highThreshold: row.querySelector(".high-threshold"),
@@ -155,12 +152,20 @@ function updateRow(stock) {
   refs.changeValue.textContent = Number.isFinite(numericChange) ? `(${change >= 0 ? "+" : ""}${change.toFixed(2)}%)` : "(--)";
   refs.change.classList.toggle("up", change >= 0);
   refs.change.classList.toggle("down", change < 0);
+  [
+    [refs.flowSuper, stock.flowSuper],
+    [refs.flowLarge, stock.flowLarge],
+    [refs.flowMedium, stock.flowMedium],
+    [refs.flowSmall, stock.flowSmall],
+  ].forEach(([element, value]) => {
+    const amount = Number(value);
+    element.textContent = `${element.dataset.flow === "super" ? "超大单" : element.dataset.flow === "large" ? "大单" : element.dataset.flow === "medium" ? "中单" : "小单"} ${formatFlow(amount)}`;
+    element.classList.toggle("flow-up", Number.isFinite(amount) && amount > 0);
+    element.classList.toggle("flow-down", Number.isFinite(amount) && amount < 0);
+  });
   refs.open.textContent = formatPrice(stock.dayOpen);
   refs.highPrice.textContent = formatPrice(stock.dayHigh);
   refs.lowPrice.textContent = formatPrice(stock.dayLow);
-  refs.momentum.textContent = stock.momentumText || "--";
-  refs.momentum.classList.toggle("momentum-up", stock.momentumDirection === "up");
-  refs.momentum.classList.toggle("momentum-down", stock.momentumDirection === "down");
   refs.high.checked = Boolean(stock.highEnabled);
   refs.low.checked = Boolean(stock.lowEnabled);
   if (document.activeElement !== refs.highThreshold) refs.highThreshold.value = stock.high ?? "";
@@ -193,7 +198,6 @@ function removeStock(ticker) {
   stocks = stocks.filter((stock) => stock.ticker !== ticker);
   alertLocks.delete(`${ticker}:high`);
   alertLocks.delete(`${ticker}:low`);
-  momentumHistory.delete(ticker);
   saveAndRender();
 }
 
@@ -241,7 +245,6 @@ function applyQuotes(quotes) {
       updatedAt: Number(quote.updated_at) || stock.updatedAt,
       latencyMs: Number(quote.latency_ms) || null, source: quote.source || stock.source,
     });
-    updateMomentum(stock);
     updateRow(stock);
     checkAlerts(stock);
   });
@@ -263,6 +266,34 @@ function applyQuotes(quotes) {
 
 async function syncWatchlist() {
   try { await fetch(`${API}/watch?symbols=${encodeURIComponent(stocks.map((stock) => stock.ticker).join(","))}`, { cache: "no-store" }); } catch { /* reconnect handles state */ }
+}
+
+async function requestFundFlow() {
+  if (fundFlowInFlight || !stocks.length) return;
+  fundFlowInFlight = true;
+  try {
+    const symbols = stocks.map((stock) => stock.ticker).join(",");
+    const response = await fetch(`${API}/fund-flow?symbols=${encodeURIComponent(symbols)}`, { cache: "no-store" });
+    if (!response.ok) throw new Error("fund flow unavailable");
+    const flows = await response.json();
+    stocks.forEach((stock) => {
+      const flow = flows[stock.ticker];
+      if (!flow) return;
+      Object.assign(stock, {
+        flowSuper: Number(flow.flow_super),
+        flowLarge: Number(flow.flow_large),
+        flowMedium: Number(flow.flow_medium),
+        flowSmall: Number(flow.flow_small),
+        flowUpdatedAt: Number(flow.flow_updated_at),
+        flowSource: flow.flow_source,
+      });
+      updateRow(stock);
+    });
+  } catch {
+    // 资金流失败不影响现价行情。
+  } finally {
+    fundFlowInFlight = false;
+  }
 }
 
 async function requestSnapshot() {
@@ -377,6 +408,8 @@ renderWatchlistStructure();
 syncWatchlist();
 connectStream();
 requestSnapshot();
+requestFundFlow();
+setInterval(requestFundFlow, 60000);
 updateMarketState();
 updateBeijingClock();
 setInterval(() => { updateMarketState(); updateBeijingClock(); }, 1000);
