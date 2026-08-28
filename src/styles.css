@@ -57,7 +57,7 @@ button { color: inherit; }
 .stock-identity { min-width: 0; }
 .stock-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700; }
 .ticker { display: block; margin-top: 2px; color: var(--muted); font-size: 9px; font-variant-numeric: tabular-nums; }
-.price-line { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 5px; min-width: 0; transform: translateX(-7px); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.price-line { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 5px; min-width: 0; transform: translateX(-3px); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .price { text-align: right; font-size: 16px; }
 .change { font-size: 11px; }
 .change strong { font-size: 11px; font-weight: 600; }
@@ -114,7 +114,7 @@ button { color: inherit; }
   .beijing-clock { font-size: 9px; }
   .connection { font-size: 0; }
   .row-top { grid-template-columns: minmax(54px, 1fr) minmax(165px, auto) 76px 18px; gap: 5px; }
-  .price-line { transform: translateX(-4px); }
+  .price-line { transform: translateX(-2px); }
   .flow-summary { padding-right: 2px; }
   .row-stats { margin-right: 25px; }
   .row-bottom { grid-template-columns: minmax(0, 1fr) 78px; gap: 5px; }
