@@ -11,7 +11,6 @@ import time
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-import akshare as ak
 import requests
 
 QUOTE_CACHE: dict[str, dict[str, Any]] = {}
@@ -190,6 +189,9 @@ def refresh_tencent(symbols: list[str]) -> None:
 
 def refresh_with_akshare(symbols: list[str]) -> None:
     """Slow compatibility fallback when the batch provider is unavailable."""
+    # AKShare 会连带加载较重的数据处理依赖，只在批量行情源均失败时才承担这部分成本。
+    import akshare as ak
+
     received_at = int(time.time() * 1000)
     updates: dict[str, dict[str, Any]] = {}
     for symbol in symbols:
