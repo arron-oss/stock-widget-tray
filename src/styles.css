@@ -82,6 +82,7 @@ button { color: inherit; }
 .row-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 6px 29px 0 0; color: #657572; font-size: 9px; font-variant-numeric: tabular-nums; }
 .row-stats span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-stats b { color: #abb7b4; font-weight: 500; }
+.row-stats em { font-style: normal; font-size: 8px; }
 .row-bottom { display: grid; grid-template-columns: minmax(0, 1fr) 92px; gap: 8px; align-items: end; margin-top: 7px; }
 .price-sparkline { width: 92px; height: 30px; overflow: visible; opacity: .9; }
 .price-sparkline polyline { stroke: #82918e; stroke-width: 1.5; }
