@@ -37,6 +37,14 @@ function formatPrice(value) {
   return number.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function formatChangeFromClose(value, previousClose) {
+  const price = Number(value);
+  const close = Number(previousClose);
+  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(close) || close <= 0) return "--";
+  const change = ((price - close) / close) * 100;
+  return `(${change >= 0 ? "+" : ""}${change.toFixed(2)}%)`;
+}
+
 function formatFlow(value) {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "--";
@@ -144,8 +152,8 @@ function renderWatchlistStructure() {
       </div>
       <div class="row-stats">
         <span>开 <b data-stat="open">--</b></span>
-        <span>高 <b data-stat="high">--</b></span>
-        <span>低 <b data-stat="low">--</b></span>
+        <span>高 <b data-stat="high">--</b> <em data-stat-change="high"></em></span>
+        <span>低 <b data-stat="low">--</b> <em data-stat-change="low"></em></span>
       </div>
       <div class="row-bottom">
         <div class="alert-controls">
@@ -178,6 +186,8 @@ function renderWatchlistStructure() {
       open: row.querySelector('[data-stat="open"]'),
       highPrice: row.querySelector('[data-stat="high"]'),
       lowPrice: row.querySelector('[data-stat="low"]'),
+      highChange: row.querySelector('[data-stat-change="high"]'),
+      lowChange: row.querySelector('[data-stat-change="low"]'),
       sparkline: row.querySelector(".price-sparkline"),
       high: row.querySelector('[data-alert="high"]'),
       low: row.querySelector('[data-alert="low"]'),
@@ -226,6 +236,10 @@ function updateRow(stock) {
   refs.open.textContent = formatPrice(stock.dayOpen);
   refs.highPrice.textContent = formatPrice(stock.dayHigh);
   refs.lowPrice.textContent = formatPrice(stock.dayLow);
+  refs.highChange.textContent = formatChangeFromClose(stock.dayHigh, stock.previousClose);
+  refs.lowChange.textContent = formatChangeFromClose(stock.dayLow, stock.previousClose);
+  refs.highChange.className = Number(stock.dayHigh) >= Number(stock.previousClose) ? "up" : "down";
+  refs.lowChange.className = Number(stock.dayLow) >= Number(stock.previousClose) ? "up" : "down";
   recordPrice(stock);
   renderSparkline(stock, refs.sparkline);
   refs.high.checked = Boolean(stock.highEnabled);
@@ -249,7 +263,7 @@ async function addStock(value) {
     const quote = result[ticker];
     if (!quote?.name) return showToast("未找到这个股票代码，请检查后重试");
     if (stocks.some((stock) => stock.ticker === ticker)) return;
-    stocks.push({ name: quote.name, ticker, price: Number(quote.price) || 0, change: Number(quote.change) || 0, delta: Number(quote.delta) || 0 });
+    stocks.push({ name: quote.name, ticker, price: Number(quote.price) || 0, change: Number(quote.change) || 0, delta: Number(quote.delta) || 0, previousClose: Number(quote.previous_close) || null });
     saveAndRender();
     requestSnapshot();
   } catch { showToast("暂时无法校验代码，请确认行情服务已连接"); }
@@ -313,6 +327,7 @@ function applyQuotes(quotes) {
     Object.assign(stock, {
       name: quote.name || stock.name,
       price: Number(quote.price), change: Number(quote.change), delta: Number(quote.delta),
+      previousClose: Number(quote.previous_close),
       dayOpen: Number(quote.day_open), dayHigh: Number(quote.day_high), dayLow: Number(quote.day_low), volume: Number(quote.volume),
       updatedAt: Number(quote.updated_at) || stock.updatedAt,
       latencyMs: Number(quote.latency_ms) || null, source: quote.source || stock.source,
