@@ -16,6 +16,7 @@ const rowRefs = new Map();
 const lookupInFlight = new Set();
 const priceHistories = new Map();
 const intradayHistories = new Map();
+const flowBaselineReady = new Set();
 const chartRanges = [5, 15, 30, 60, 120, 240];
 let chartRangeMinutes = 30;
 const stockList = document.querySelector("#stockList");
@@ -212,7 +213,13 @@ function updateRow(stock) {
     const amount = Number(value);
     const deltaKey = ["flowSuperDelta", "flowLargeDelta", "flowMediumDelta", "flowSmallDelta"][index];
     const label = element.dataset.flow === "super" ? "超大单" : element.dataset.flow === "large" ? "大单" : element.dataset.flow === "medium" ? "中单" : "小单";
-    element.textContent = `${label} ${formatFlow(amount)} (${formatFlow(stock[deltaKey])})`;
+    const streakKey = element.dataset.flow === "super" ? "flowSuperPositiveStreak" : element.dataset.flow === "large" ? "flowLargePositiveStreak" : null;
+    const streak = streakKey ? Number(stock[streakKey]) : 0;
+    element.innerHTML = `${label} ${formatFlow(amount)} <span class="flow-delta">(${formatFlow(stock[deltaKey])})</span>`;
+    if (streakKey) {
+      element.title = "括号内变化量连续 3 次为正时闪烁提示";
+      element.classList.toggle("flow-streak-alert", Number.isFinite(streak) && streak >= 3);
+    }
     element.classList.toggle("flow-up", Number.isFinite(amount) && amount > 0);
     element.classList.toggle("flow-down", Number.isFinite(amount) && amount < 0);
   });
@@ -253,6 +260,7 @@ function removeStock(ticker) {
   stocks = stocks.filter((stock) => stock.ticker !== ticker);
   priceHistories.delete(ticker);
   intradayHistories.delete(ticker);
+  flowBaselineReady.delete(ticker);
   alertLocks.delete(`${ticker}:high`);
   alertLocks.delete(`${ticker}:low`);
   saveAndRender();
@@ -343,6 +351,7 @@ async function requestFundFlow() {
     stocks.forEach((stock) => {
       const flow = flows[stock.ticker];
       if (!flow) return;
+      const hasBaseline = flowBaselineReady.has(stock.ticker);
       const fields = [
         ["flow_super", "flowSuper", "flowSuperDelta"],
         ["flow_large", "flowLarge", "flowLargeDelta"],
@@ -352,9 +361,22 @@ async function requestFundFlow() {
       fields.forEach(([source, current, delta]) => {
         const previousValue = Number(stock[current]);
         const nextValue = Number(flow[source]);
-        stock[delta] = Number.isFinite(previousValue) && Number.isFinite(nextValue) ? nextValue - previousValue : null;
+        stock[delta] = hasBaseline && Number.isFinite(previousValue) && Number.isFinite(nextValue) ? nextValue - previousValue : null;
         stock[current] = nextValue;
       });
+      const positiveStreak = (deltaKey, streakKey) => {
+        const delta = Number(stock[deltaKey]);
+        if (Number.isFinite(delta) && delta > 0) stock[streakKey] = (Number(stock[streakKey]) || 0) + 1;
+        else stock[streakKey] = 0;
+      };
+      if (hasBaseline) {
+        positiveStreak("flowSuperDelta", "flowSuperPositiveStreak");
+        positiveStreak("flowLargeDelta", "flowLargePositiveStreak");
+      } else {
+        stock.flowSuperPositiveStreak = 0;
+        stock.flowLargePositiveStreak = 0;
+      }
+      flowBaselineReady.add(stock.ticker);
       Object.assign(stock, { flowUpdatedAt: Number(flow.flow_updated_at), flowSource: flow.flow_source });
       updateRow(stock);
     });
