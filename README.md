@@ -36,4 +36,14 @@ npm run tauri dev
 
 当前开发版启动依赖本机 Python 和 AKShare。系统预警使用 Rust 端的 Tauri Windows 通知插件；请使用 MSI/NSIS 安装后运行，直接运行 `src-tauri/target/release` 下的裸 `.exe` 没有 Windows 应用通知身份，系统会把通知来源显示为 PowerShell。如果 Windows 通知被系统关闭，需要在系统通知设置中允许本程序。正式分发时需要再用 PyInstaller 把 `src-tauri/resources/server.py` 及其 Python 运行时打成 sidecar，才能做到目标机器免安装 Python。
 
-可选的 Windhawk 任务栏行情扩展原型位于 `windhawk/stock-widget-taskbar.wh.cpp`。它会在任务栏时钟左侧显示简短行情，但需要用户自行安装 Windhawk 并手动导入启用，详见 `windhawk/README.md`。
+## 可选：任务栏行情
+
+仓库内附带一个可选的 Windhawk 扩展：`windhawk/stock-widget-taskbar.wh.cpp`。启用后，它会在 Windows 任务栏时钟左侧显示一条紧凑行情，适合快速查看；完整自选列表、买点/卖点设置和系统通知仍由主程序负责。
+
+使用方式：
+
+1. 安装并打开 [Windhawk](https://windhawk.net/)。
+2. 在 Windhawk 中创建新 Mod，把 `windhawk/stock-widget-taskbar.wh.cpp` 的全部内容粘贴进去。
+3. 编译并启用 Mod，同时保持本程序运行。
+
+这个扩展需要 Windhawk 单独加载到 Windows 资源管理器中，主程序不会自动注入或修改 `explorer.exe`。当前扩展先固定显示贵州茅台，用于验证任务栏显示和实时刷新；后续再接入主程序的完整自选列表。Windows 更新、任务栏位置或缩放比例变化后，扩展可能需要重新编译适配。
