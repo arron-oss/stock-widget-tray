@@ -1,7 +1,7 @@
 use std::{
     net::{SocketAddr, TcpStream},
     path::PathBuf,
-    process::{Child, Command},
+    process::{Child, Command, Stdio},
     sync::Mutex,
     time::Duration,
 };
@@ -135,6 +135,61 @@ fn send_notification(app: tauri::AppHandle, title: String, body: String) -> Resu
         .map_err(|error| error.to_string())
 }
 
+fn windhawk_executable() -> Option<PathBuf> {
+    let candidates = [
+        std::env::var_os("ProgramFiles").map(|root| PathBuf::from(root).join("Windhawk\\windhawk.exe")),
+        std::env::var_os("LOCALAPPDATA").map(|root| PathBuf::from(root).join("Programs\\Windhawk\\windhawk.exe")),
+    ];
+    candidates.into_iter().flatten().find(|path| path.exists())
+}
+
+fn windhawk_overlay_is_running() -> bool {
+    #[cfg(windows)]
+    {
+        use std::ptr::null;
+        #[link(name = "user32")]
+        extern "system" { fn FindWindowW(class_name: *const u16, window_name: *const u16) -> *mut std::ffi::c_void; }
+        let class_name: Vec<u16> = "StockWidgetWindhawkOverlay\0".encode_utf16().collect();
+        return !unsafe { FindWindowW(class_name.as_ptr(), null()) }.is_null();
+    }
+    #[cfg(not(windows))]
+    false
+}
+
+#[tauri::command]
+fn windhawk_status() -> &'static str {
+    if windhawk_overlay_is_running() { "running" }
+    else if windhawk_executable().is_some() { "installed" }
+    else { "missing" }
+}
+
+#[tauri::command]
+fn open_windhawk_download() -> Result<(), String> {
+    Command::new("cmd")
+        .args(["/C", "start", "", "https://windhawk.net/"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn open_windhawk_mod(app: tauri::AppHandle) -> Result<(), String> {
+    let bundled = app.path().resource_dir().ok().map(|root| root.join("windhawk").join("stock-widget-taskbar.wh.cpp"));
+    let development = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../windhawk/stock-widget-taskbar.wh.cpp");
+    let path = bundled
+        .into_iter()
+        .chain([development])
+        .find(|path| path.exists())
+        .ok_or_else(|| "Windhawk Mod 文件不存在".to_string())?;
+    Command::new("explorer.exe")
+        .arg(format!("/select,{}", path.display()))
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if !acquire_single_instance() {
@@ -184,7 +239,7 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .invoke_handler(tauri::generate_handler![hide_window, resize_window, send_notification])
+        .invoke_handler(tauri::generate_handler![hide_window, resize_window, send_notification, windhawk_status, open_windhawk_download, open_windhawk_mod])
         .build(tauri::generate_context!())
         .expect("error while building stock widget");
     app.run(|app, event| {

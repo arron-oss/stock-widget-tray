@@ -29,7 +29,11 @@
   },
   "bundle": {
     "active": true,
-    "resources": ["resources/server.py", "../windhawk/stock-widget-taskbar.wh.cpp", "../windhawk/README.md"],
+    "resources": {
+      "resources/server.py": "resources/server.py",
+      "../windhawk/stock-widget-taskbar.wh.cpp": "windhawk/stock-widget-taskbar.wh.cpp",
+      "../windhawk/README.md": "windhawk/README.md"
+    },
     "targets": "all",
     "icon": [
       "icons/32x32.png",

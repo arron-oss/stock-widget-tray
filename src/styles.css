@@ -41,6 +41,8 @@ button { color: inherit; }
 .connection[data-state="online"] .connection-dot { background: var(--cyan); box-shadow: 0 0 0 3px rgba(103, 200, 210, .12); }
 .connection[data-state="offline"] { color: var(--red); }
 .connection[data-state="offline"] .connection-dot { background: var(--red); }
+.extension-button { height: 22px; padding: 0 7px; border: 1px solid #334749; border-radius: 5px; background: transparent; color: #91a19e; cursor: pointer; font-size: 9px; white-space: nowrap; }
+.extension-button:hover { border-color: #4b7778; color: var(--cyan); background: rgba(103, 200, 210, .08); }
 .icon-button { width: 28px; height: 28px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 5px; background: transparent; color: #a6b3b0; cursor: pointer; font-size: 16px; }
 .icon-button:hover { background: var(--surface-3); color: #fff; }
 
