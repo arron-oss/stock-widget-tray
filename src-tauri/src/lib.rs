@@ -120,6 +120,7 @@ fn resize_window(app: tauri::AppHandle, height: f64) -> Result<(), String> {
     window
         .set_size(LogicalSize::new(430.0, height.clamp(250.0, 680.0)))
         .map_err(|error| error.to_string())?;
+    // 高度变化后重新贴到右下角，始终与任务栏时钟保持固定间距。
     place_near_taskbar(&window);
     Ok(())
 }

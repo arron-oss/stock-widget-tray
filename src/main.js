@@ -144,11 +144,14 @@ function renderWatchlistStructure() {
     row.innerHTML = `
       <div class="row-top">
         <div class="stock-identity"><div class="stock-name"></div><span class="ticker"></span></div>
+        <div class="price-line"><span class="price">--</span><span class="change"><strong>(--)</strong></span></div>
+        <button class="remove-button" data-remove title="移除" aria-label="移除">×</button>
+      </div>
+      <div class="row-flow">
+        <span class="section-label">资金流</span>
         <div class="flow-summary" aria-label="资金净流入">
           <span data-flow="super">超大单 -- (--)</span><span data-flow="large">大单 -- (--)</span><span data-flow="medium">中单 -- (--)</span><span data-flow="small">小单 -- (--)</span>
         </div>
-        <div class="price-line"><span class="price">--</span><span class="change"><strong>(--)</strong></span></div>
-        <button class="remove-button" data-remove title="移除" aria-label="移除">×</button>
       </div>
       <div class="row-stats">
         <span>开 <b data-stat="open">--</b></span>
@@ -156,19 +159,22 @@ function renderWatchlistStructure() {
         <span>低 <b data-stat="low">--</b> <em data-stat-change="low"></em></span>
       </div>
       <div class="row-bottom">
-        <div class="alert-controls">
-          <label class="alert-toggle" title="现价达到目标价时通知"><input type="checkbox" data-alert="high">涨到</label>
-          <input class="threshold high-threshold" inputmode="decimal" data-threshold="high" value="" placeholder="目标价" aria-label="涨到目标价">
-          <span class="alert-suffix">提醒</span>
-          <label class="alert-toggle" title="现价达到目标价时通知"><input type="checkbox" data-alert="low">跌到</label>
-          <input class="threshold low-threshold" inputmode="decimal" data-threshold="low" value="" placeholder="目标价" aria-label="跌到目标价">
-          <span class="alert-suffix">提醒</span>
+        <div class="row-actions">
+          <button class="alert-button" type="button" data-alert-toggle title="展开风控设置">风控</button>
           <span class="alert-badge"></span>
         </div>
         <svg class="price-sparkline" viewBox="0 0 100 30" role="img" aria-label="近 30 秒价格走势" preserveAspectRatio="none">
           <polygon points="0,30 0,15 100,15 100,30"></polygon>
           <polyline points="0,15 100,15" fill="none" vector-effect="non-scaling-stroke"></polyline>
         </svg>
+      </div>
+      <div class="alert-controls">
+          <label class="alert-toggle sell-toggle" title="现价达到卖点时通知"><input type="checkbox" data-risk="sell">卖点 ≥</label>
+          <input class="threshold high-threshold" inputmode="decimal" data-threshold="sellPrice" value="" placeholder="价格" aria-label="卖点价格">
+          <span class="alert-suffix">提醒</span>
+          <label class="alert-toggle buy-toggle" title="现价达到买点时通知"><input type="checkbox" data-risk="buy">买点 ≤</label>
+          <input class="threshold low-threshold" inputmode="decimal" data-threshold="buyPrice" value="" placeholder="价格" aria-label="买点价格">
+          <span class="alert-suffix">提醒</span>
       </div>`;
 
     const refs = {
@@ -189,10 +195,11 @@ function renderWatchlistStructure() {
       highChange: row.querySelector('[data-stat-change="high"]'),
       lowChange: row.querySelector('[data-stat-change="low"]'),
       sparkline: row.querySelector(".price-sparkline"),
-      high: row.querySelector('[data-alert="high"]'),
-      low: row.querySelector('[data-alert="low"]'),
+      high: row.querySelector('[data-risk="sell"]'),
+      low: row.querySelector('[data-risk="buy"]'),
       highThreshold: row.querySelector(".high-threshold"),
       lowThreshold: row.querySelector(".low-threshold"),
+      alertButton: row.querySelector("[data-alert-toggle]"),
       badge: row.querySelector(".alert-badge"),
     };
     rowRefs.set(stock.ticker, refs);
@@ -223,13 +230,7 @@ function updateRow(stock) {
     const amount = Number(value);
     const deltaKey = ["flowSuperDelta", "flowLargeDelta", "flowMediumDelta", "flowSmallDelta"][index];
     const label = element.dataset.flow === "super" ? "超大单" : element.dataset.flow === "large" ? "大单" : element.dataset.flow === "medium" ? "中单" : "小单";
-    const streakKey = element.dataset.flow === "super" ? "flowSuperPositiveStreak" : element.dataset.flow === "large" ? "flowLargePositiveStreak" : null;
-    const streak = streakKey ? Number(stock[streakKey]) : 0;
     element.innerHTML = `${label} ${formatFlow(amount)} <span class="flow-delta">(${formatFlow(stock[deltaKey])})</span>`;
-    if (streakKey) {
-      element.title = "括号内变化量连续 3 次为正时闪烁提示";
-      element.classList.toggle("flow-streak-alert", Number.isFinite(streak) && streak >= 3);
-    }
     element.classList.toggle("flow-up", Number.isFinite(amount) && amount > 0);
     element.classList.toggle("flow-down", Number.isFinite(amount) && amount < 0);
   });
@@ -242,11 +243,11 @@ function updateRow(stock) {
   refs.lowChange.className = Number(stock.dayLow) >= Number(stock.previousClose) ? "up" : "down";
   recordPrice(stock);
   renderSparkline(stock, refs.sparkline);
-  refs.high.checked = Boolean(stock.highEnabled);
-  refs.low.checked = Boolean(stock.lowEnabled);
-  if (document.activeElement !== refs.highThreshold) refs.highThreshold.value = stock.high ?? "";
-  if (document.activeElement !== refs.lowThreshold) refs.lowThreshold.value = stock.low ?? "";
-  refs.badge.textContent = stock.highEnabled || stock.lowEnabled ? "预警中" : "";
+  refs.high.checked = Boolean(stock.sellEnabled);
+  refs.low.checked = Boolean(stock.buyEnabled);
+  if (document.activeElement !== refs.highThreshold) refs.highThreshold.value = stock.sellPrice ?? "";
+  if (document.activeElement !== refs.lowThreshold) refs.lowThreshold.value = stock.buyPrice ?? "";
+  refs.badge.textContent = stock.sellEnabled || stock.buyEnabled ? "盯盘中" : "";
 }
 
 async function addStock(value) {
@@ -275,8 +276,8 @@ function removeStock(ticker) {
   priceHistories.delete(ticker);
   intradayHistories.delete(ticker);
   flowBaselineReady.delete(ticker);
-  alertLocks.delete(`${ticker}:high`);
-  alertLocks.delete(`${ticker}:low`);
+  alertLocks.delete(`${ticker}:sell`);
+  alertLocks.delete(`${ticker}:buy`);
   saveAndRender();
 }
 
@@ -302,15 +303,16 @@ async function requestSystemAlertPermission() {
   return typeof window.__TAURI__?.core?.invoke === "function";
 }
 
-function checkAlerts(stock) {
+function checkRisk(stock) {
   const price = Number(stock.price);
   if (!Number.isFinite(price) || price <= 0) return;
-  [{ kind: "high", enabled: stock.highEnabled, threshold: stock.high, text: "涨到" }, { kind: "low", enabled: stock.lowEnabled, threshold: stock.low, text: "跌到" }].forEach(({ kind, enabled, threshold, text }) => {
-    if (!enabled || !threshold) return;
+  [{ kind: "sell", enabled: stock.sellEnabled, threshold: stock.sellPrice, text: "卖点" }, { kind: "buy", enabled: stock.buyEnabled, threshold: stock.buyPrice, text: "买点" }].forEach(({ kind, enabled, threshold, text }) => {
+    const limit = Number(threshold);
+    if (!enabled || !Number.isFinite(limit) || limit <= 0) return;
     const key = `${stock.ticker}:${kind}`;
-    const active = kind === "high" ? price >= threshold : price <= threshold;
+    const active = kind === "sell" ? price >= limit : price <= limit;
     if (active && !alertLocks.get(key)) {
-      void sendSystemAlert(`${stock.name} 价格预警`, `现价 ${formatPrice(price)}，已${text} ${formatPrice(threshold)}`);
+      void sendSystemAlert(`${stock.name} ${text}提醒`, `现价 ${formatPrice(price)}，已达到${text} ${formatPrice(limit)}`);
       alertLocks.set(key, true);
     }
     if (!active) alertLocks.set(key, false);
@@ -333,7 +335,7 @@ function applyQuotes(quotes) {
       latencyMs: Number(quote.latency_ms) || null, source: quote.source || stock.source,
     });
     updateRow(stock);
-    checkAlerts(stock);
+    checkRisk(stock);
   });
   Object.values(quotes).some((quote) => {
     if (quote.session === "auction" && quote.auction_price) { auctionQuote = quote; return true; }
@@ -379,18 +381,6 @@ async function requestFundFlow() {
         stock[delta] = hasBaseline && Number.isFinite(previousValue) && Number.isFinite(nextValue) ? nextValue - previousValue : null;
         stock[current] = nextValue;
       });
-      const positiveStreak = (deltaKey, streakKey) => {
-        const delta = Number(stock[deltaKey]);
-        if (Number.isFinite(delta) && delta > 0) stock[streakKey] = (Number(stock[streakKey]) || 0) + 1;
-        else stock[streakKey] = 0;
-      };
-      if (hasBaseline) {
-        positiveStreak("flowSuperDelta", "flowSuperPositiveStreak");
-        positiveStreak("flowLargeDelta", "flowLargePositiveStreak");
-      } else {
-        stock.flowSuperPositiveStreak = 0;
-        stock.flowLargePositiveStreak = 0;
-      }
       flowBaselineReady.add(stock.ticker);
       Object.assign(stock, { flowUpdatedAt: Number(flow.flow_updated_at), flowSource: flow.flow_source });
       updateRow(stock);
@@ -466,6 +456,14 @@ function updateBeijingClock() {
 }
 
 stockList.addEventListener("click", (event) => {
+  const alertToggle = event.target.closest("[data-alert-toggle]");
+  if (alertToggle) {
+    const row = alertToggle.closest(".stock-row");
+    row.classList.toggle("is-alert-open");
+    alertToggle.textContent = row.classList.contains("is-alert-open") ? "收起" : "风控";
+    resizeWindowToContent();
+    return;
+  }
   const chart = event.target.closest(".price-sparkline");
   if (chart) {
     const index = chartRanges.indexOf(chartRangeMinutes);
@@ -527,11 +525,11 @@ stockList.addEventListener("change", async (event) => {
   if (!row) return;
   const stock = stocks.find((item) => item.ticker === row.dataset.ticker);
   if (!stock) return;
-  if (input.matches("[data-alert]")) {
-    stock[`${input.dataset.alert}Enabled`] = input.checked;
+  if (input.matches("[data-risk]")) {
+    stock[`${input.dataset.risk === "sell" ? "sell" : "buy"}Enabled`] = input.checked;
     if (input.checked && !(await requestSystemAlertPermission())) showToast("系统通知未开启，请在 Windows 通知设置中允许本程序");
-  } else if (input.matches("[data-threshold]")) stock[input.dataset.threshold] = Number(input.value) || null;
-  persistWatchlist(); updateRow(stock); checkAlerts(stock);
+  } else if (input.matches("[data-threshold]")) stock[input.dataset.threshold] = Math.abs(Number(input.value)) || null;
+  persistWatchlist(); updateRow(stock); checkRisk(stock);
 });
 
 document.querySelector("#addForm").addEventListener("submit", (event) => {
