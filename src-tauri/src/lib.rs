@@ -1,8 +1,7 @@
 use std::{
-    io::Write,
     net::{SocketAddr, TcpStream},
     path::PathBuf,
-    process::{Child, Command, Stdio},
+    process::{Child, Command},
     sync::Mutex,
     time::Duration,
 };
@@ -105,6 +104,24 @@ fn toggle_window(app: &tauri::AppHandle) {
     }
 }
 
+fn place_taskbar_overlay(window: &tauri::WebviewWindow) {
+    let Ok(Some(monitor)) = window.primary_monitor() else { return; };
+    let Ok(window_size) = window.outer_size() else { return; };
+    let monitor_size = monitor.size();
+    let monitor_position = monitor.position();
+    let x = monitor_position.x + monitor_size.width as i32 - window_size.width as i32 - 170;
+    let y = monitor_position.y + monitor_size.height as i32 - window_size.height as i32 - 52;
+    let _ = window.set_position(PhysicalPosition::new(x, y));
+}
+
+#[tauri::command]
+fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    let window = app.get_webview_window("main").ok_or_else(|| "主窗口不存在".to_string())?;
+    place_near_taskbar(&window);
+    window.show().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
     let window = app
@@ -136,71 +153,6 @@ fn send_notification(app: tauri::AppHandle, title: String, body: String) -> Resu
         .map_err(|error| error.to_string())
 }
 
-fn windhawk_executable() -> Option<PathBuf> {
-    let candidates = [
-        std::env::var_os("ProgramFiles").map(|root| PathBuf::from(root).join("Windhawk\\windhawk.exe")),
-        std::env::var_os("LOCALAPPDATA").map(|root| PathBuf::from(root).join("Programs\\Windhawk\\windhawk.exe")),
-    ];
-    candidates.into_iter().flatten().find(|path| path.exists())
-}
-
-fn windhawk_overlay_is_running() -> bool {
-    #[cfg(windows)]
-    {
-        use std::ptr::null;
-        #[link(name = "user32")]
-        extern "system" { fn FindWindowW(class_name: *const u16, window_name: *const u16) -> *mut std::ffi::c_void; }
-        let class_name: Vec<u16> = "StockWidgetWindhawkOverlay\0".encode_utf16().collect();
-        return !unsafe { FindWindowW(class_name.as_ptr(), null()) }.is_null();
-    }
-    #[cfg(not(windows))]
-    false
-}
-
-#[tauri::command]
-fn windhawk_status() -> &'static str {
-    if windhawk_overlay_is_running() { "running" }
-    else if windhawk_executable().is_some() { "installed" }
-    else { "missing" }
-}
-
-#[tauri::command]
-fn open_windhawk_download() -> Result<(), String> {
-    Command::new("cmd")
-        .args(["/C", "start", "", "https://windhawk.net/"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .map(|_| ())
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn open_windhawk_mod(app: tauri::AppHandle) -> Result<(), String> {
-    let bundled = app.path().resource_dir().ok().map(|root| root.join("windhawk").join("stock-widget-taskbar.wh.cpp"));
-    let development = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../windhawk/stock-widget-taskbar.wh.cpp");
-    let path = bundled
-        .into_iter()
-        .chain([development])
-        .find(|path| path.exists())
-        .ok_or_else(|| "Windhawk Mod 文件不存在".to_string())?;
-    let content = std::fs::read_to_string(&path).map_err(|error| error.to_string())?;
-    let mut clip = Command::new("clip.exe")
-        .stdin(std::process::Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .map_err(|error| error.to_string())?;
-    if let Some(stdin) = clip.stdin.as_mut() { stdin.write_all(content.as_bytes()).map_err(|error| error.to_string())?; }
-    let _ = clip.wait();
-    if let Some(executable) = windhawk_executable() {
-        Command::new(executable).spawn().map_err(|error| error.to_string())?;
-    } else {
-        Command::new("explorer.exe").arg(path.parent().unwrap_or(&path)).spawn().map_err(|error| error.to_string())?;
-    }
-    Ok(())
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     if !acquire_single_instance() {
@@ -213,6 +165,10 @@ pub fn run() {
             app.manage(BridgeProcess(Mutex::new(start_quote_bridge(app.handle()))));
             if let Some(window) = app.get_webview_window("main") {
                 place_near_taskbar(&window);
+            }
+            if let Some(window) = app.get_webview_window("overlay") {
+                place_taskbar_overlay(&window);
+                let _ = window.show();
             }
             let show = MenuItemBuilder::with_id("show", "显示看盘").build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "退出").build(app)?;
@@ -250,7 +206,7 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .invoke_handler(tauri::generate_handler![hide_window, resize_window, send_notification, windhawk_status, open_windhawk_download, open_windhawk_mod])
+        .invoke_handler(tauri::generate_handler![hide_window, resize_window, send_notification, show_main_window])
         .build(tauri::generate_context!())
         .expect("error while building stock widget");
     app.run(|app, event| {

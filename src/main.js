@@ -546,23 +546,6 @@ document.querySelector("#hideButton").addEventListener("click", async (event) =>
   } catch (error) { showToast(`隐藏窗口失败：${error?.message || "请使用托盘按钮"}`); }
 });
 
-document.querySelector("#extensionButton").addEventListener("click", async () => {
-  const invoke = window.__TAURI__?.core?.invoke;
-  if (typeof invoke !== "function") return showToast("请在桌面程序中配置任务栏扩展");
-  try {
-    const status = await invoke("windhawk_status");
-    if (status === "running") {
-      showToast("任务栏行情扩展正在运行");
-    } else if (status === "installed") {
-      await invoke("open_windhawk_mod");
-      showToast("Mod 内容已复制，Windhawk 已打开；新建 Mod 后直接粘贴并编译启用");
-    } else {
-      await invoke("open_windhawk_download");
-      showToast("请先安装 Windhawk，安装后再次点击此按钮打开 Mod 文件");
-    }
-  } catch { showToast("无法打开 Windhawk 配置，请查看 windhawk 文件夹"); }
-});
-
 renderWatchlistStructure();
 syncWatchlist();
 connectStream();
