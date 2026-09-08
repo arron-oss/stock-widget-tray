@@ -40,7 +40,13 @@ npm run tauri dev
 
 仓库内附带一个可选的 Windhawk 扩展：`windhawk/stock-widget-taskbar.wh.cpp`。启用后，它会在 Windows 任务栏时钟左侧显示一条紧凑行情，适合快速查看；完整自选列表、买点/卖点设置和系统通知仍由主程序负责。
 
-使用方式：
+主程序标题栏提供“任务栏”入口：
+
+- 未检测到 Windhawk：打开 Windhawk 官方下载页。
+- 已安装但扩展未运行：打开安装包附带的 Mod 文件所在位置。
+- 扩展已经运行：直接显示状态提示。
+
+首次使用方式：
 
 1. 安装并打开 [Windhawk](https://windhawk.net/)。
 2. 在 Windhawk 中创建新 Mod，把 `windhawk/stock-widget-taskbar.wh.cpp` 的全部内容粘贴进去。
