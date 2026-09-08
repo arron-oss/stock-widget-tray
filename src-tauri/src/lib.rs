@@ -1,4 +1,5 @@
 use std::{
+    io::Write,
     net::{SocketAddr, TcpStream},
     path::PathBuf,
     process::{Child, Command, Stdio},
@@ -183,11 +184,21 @@ fn open_windhawk_mod(app: tauri::AppHandle) -> Result<(), String> {
         .chain([development])
         .find(|path| path.exists())
         .ok_or_else(|| "Windhawk Mod 文件不存在".to_string())?;
-    Command::new("explorer.exe")
-        .arg(format!("/select,{}", path.display()))
+    let content = std::fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let mut clip = Command::new("clip.exe")
+        .stdin(std::process::Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
-        .map(|_| ())
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+    if let Some(stdin) = clip.stdin.as_mut() { stdin.write_all(content.as_bytes()).map_err(|error| error.to_string())?; }
+    let _ = clip.wait();
+    if let Some(executable) = windhawk_executable() {
+        Command::new(executable).spawn().map_err(|error| error.to_string())?;
+    } else {
+        Command::new("explorer.exe").arg(path.parent().unwrap_or(&path)).spawn().map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

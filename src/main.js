@@ -555,7 +555,7 @@ document.querySelector("#extensionButton").addEventListener("click", async () =>
       showToast("任务栏行情扩展正在运行");
     } else if (status === "installed") {
       await invoke("open_windhawk_mod");
-      showToast("已打开任务栏行情 Mod 文件，请复制到 Windhawk 编译并启用");
+      showToast("Mod 内容已复制，Windhawk 已打开；新建 Mod 后直接粘贴并编译启用");
     } else {
       await invoke("open_windhawk_download");
       showToast("请先安装 Windhawk，安装后再次点击此按钮打开 Mod 文件");
