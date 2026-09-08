@@ -1,0 +1,9 @@
+:root { font-family: "Microsoft YaHei UI", "Source Han Sans SC", sans-serif; color: #dce8e5; background: #0d1416; }
+* { box-sizing: border-box; }
+html, body, button { width: 100%; height: 100%; margin: 0; }
+body { overflow: hidden; background: transparent; }
+button { padding: 0 9px; border: 1px solid #294044; border-radius: 5px; background: #0d1416; color: #a9bfbb; text-align: left; font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: grab; }
+button:active { cursor: grabbing; }
+button:hover { border-color: #5d9da0; color: #e6f3ef; background: #132326; }
+button.up { color: #ff697d; }
+button.down { color: #35d0a0; }

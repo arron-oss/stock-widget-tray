@@ -21,6 +21,19 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "center": true
+      },
+      {
+        "label": "overlay",
+        "title": "任务栏行情",
+        "url": "overlay.html",
+        "width": 172,
+        "height": 28,
+        "resizable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focus": false,
+        "visible": false
       }
     ],
     "security": {
@@ -29,11 +42,7 @@
   },
   "bundle": {
     "active": true,
-    "resources": {
-      "resources/server.py": "resources/server.py",
-      "../windhawk/stock-widget-taskbar.wh.cpp": "windhawk/stock-widget-taskbar.wh.cpp",
-      "../windhawk/README.md": "windhawk/README.md"
-    },
+    "resources": ["resources/server.py"],
     "targets": "all",
     "icon": [
       "icons/32x32.png",
