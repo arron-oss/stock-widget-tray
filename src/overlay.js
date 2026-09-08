@@ -24,6 +24,15 @@ async function refresh() {
   }
 }
 
-quote.addEventListener("click", () => { if (typeof invoke === "function") void invoke("show_main_window"); });
+let dragStart = null;
+quote.addEventListener("pointerdown", (event) => {
+  dragStart = { x: event.clientX, y: event.clientY };
+  const currentWindow = window.__TAURI__?.window?.getCurrentWindow;
+  if (typeof currentWindow === "function") void currentWindow().startDragging();
+});
+quote.addEventListener("click", (event) => {
+  if (dragStart && (Math.abs(event.clientX - dragStart.x) > 5 || Math.abs(event.clientY - dragStart.y) > 5)) return;
+  if (typeof invoke === "function") void invoke("show_main_window");
+});
 refresh();
 setInterval(refresh, 2000);
