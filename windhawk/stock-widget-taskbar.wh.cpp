@@ -18,11 +18,10 @@
 namespace {
 
 constexpr wchar_t kClassName[] = L"StockWidgetWindhawkOverlay";
-constexpr wchar_t kWindowName[] = L"自选看盘";
 constexpr UINT_PTR kTimerId = 1;
 constexpr UINT kRefreshMs = 2000;
 HWND g_overlay = nullptr;
-std::wstring g_text = L"自选看盘 取价中";
+std::wstring g_text = L"Stock  loading";
 COLORREF g_color = RGB(155, 170, 166);
 
 std::string HttpGet(const std::string& url) {
@@ -45,7 +44,7 @@ void RefreshQuote() {
     const std::regex priceRe(R"("price"\s*:\s*([0-9.]+))");
     const std::regex changeRe(R"("change"\s*:\s*(-?[0-9.]+))");
     if (!std::regex_search(body, match, priceRe)) {
-        g_text = L"自选看盘 取价中";
+        g_text = L"Stock  loading";
         g_color = RGB(155, 170, 166);
     } else {
         const std::wstring price(match[1].str().begin(), match[1].str().end());
@@ -56,7 +55,7 @@ void RefreshQuote() {
             change.assign(raw.begin(), raw.end());
             up = raw.empty() || raw[0] != '-';
         }
-        g_text = L"贵州茅台 " + price + L" " + (up ? L"+" : L"") + change + L"%";
+        g_text = L"Stock " + price + L" " + (up ? L"+" : L"") + change + L"%";
         g_color = up ? RGB(255, 105, 125) : RGB(53, 208, 160);
     }
     if (g_overlay) InvalidateRect(g_overlay, nullptr, FALSE);
@@ -116,7 +115,7 @@ DWORD WINAPI OverlayThread(void*) {
     klass.lpszClassName = kClassName;
     klass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     RegisterClassW(&klass);
-    g_overlay = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, kClassName, kWindowName, WS_POPUP, 0, 0, 172, 28, nullptr, nullptr, klass.hInstance, nullptr);
+    g_overlay = CreateWindowExW(WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, kClassName, L"Stock Widget", WS_POPUP, 0, 0, 172, 28, nullptr, nullptr, klass.hInstance, nullptr);
     if (!g_overlay) return 0;
     RefreshQuote();
     PlaceOverlay();
