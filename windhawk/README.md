@@ -5,8 +5,8 @@
 ## 安装测试
 
 1. 点击主程序标题栏的“任务栏”。未安装时，程序会打开 [Windhawk](https://windhawk.net/) 官方下载页。
-2. 安装 Windhawk 后再次点击“任务栏”，程序会打开安装包附带的 Mod 文件所在位置。
-3. 在 Windhawk 中创建新 Mod，把 `stock-widget-taskbar.wh.cpp` 的全部内容粘贴进去。
+2. 安装 Windhawk 后再次点击“任务栏”，程序会自动复制 Mod 内容并打开 Windhawk。
+3. 在 Windhawk 中创建新 Mod，直接粘贴内容。
 4. 编译并启用 Mod。
 5. 启动主程序，并确认 `http://127.0.0.1:8765/quotes?symbols=600519` 可以访问。
 
