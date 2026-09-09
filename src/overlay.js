@@ -29,6 +29,7 @@ quote.addEventListener("pointerdown", (event) => {
   dragStart = { x: event.clientX, y: event.clientY };
   const currentWindow = window.__TAURI__?.window?.getCurrentWindow;
   if (typeof currentWindow === "function") void currentWindow().startDragging();
+  else if (window.__TAURI_INTERNALS__?.invoke) void window.__TAURI_INTERNALS__.invoke("plugin:window|start_dragging");
 });
 quote.addEventListener("click", (event) => {
   if (dragStart && (Math.abs(event.clientX - dragStart.x) > 5 || Math.abs(event.clientY - dragStart.y) > 5)) return;
